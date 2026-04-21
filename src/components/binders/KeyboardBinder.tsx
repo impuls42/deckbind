@@ -58,7 +58,7 @@ export function KeyboardBinder() {
       if (matchingActions.length > 0) filtered[cat] = matchingActions;
     });
     return filtered;
-  }, [groupedActions, searchTerm, activeSet]);
+  }, [groupedActions, searchTerm]);
 
   type SidebarView = 'list' | 'binding' | 'inspect';
 

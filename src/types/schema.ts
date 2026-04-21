@@ -22,6 +22,7 @@ export const ModeShiftSchema = z.object({
 });
 
 export const ModeShiftsSchema = z.record(z.string(), z.array(ModeShiftSchema)); // inputId -> ModeShift[]
+export const TrackpadModeSchema = z.enum(['mouse', 'stick', 'dpad4', 'dpad8']).default('mouse');
 
 export const ActionSetSchema = z.object({
   id: z.string().min(1, 'ID is required'),
@@ -31,6 +32,10 @@ export const ActionSetSchema = z.object({
     keyboard: BindingsSchema,
     deck: BindingsSchema,
     deckModeShifts: ModeShiftsSchema.default({}),
+    deckTrackpadModes: z.object({
+      ltrackpad: TrackpadModeSchema,
+      rtrackpad: TrackpadModeSchema,
+    }).default({ ltrackpad: 'mouse', rtrackpad: 'mouse' }),
   }),
 });
 
@@ -50,6 +55,7 @@ export type Action = z.infer<typeof ActionSchema>;
 export type Bindings = z.infer<typeof BindingsSchema>;
 export type ModeShift = z.infer<typeof ModeShiftSchema>;
 export type ModeShifts = z.infer<typeof ModeShiftsSchema>;
+export type TrackpadMode = z.infer<typeof TrackpadModeSchema>;
 export type ActionSet = z.infer<typeof ActionSetSchema>;
 export type ProfileInfo = z.infer<typeof ProfileInfoSchema>;
 export type Profile = z.infer<typeof ProfileSchema>;
@@ -69,6 +75,7 @@ export const DEFAULT_PROFILE: Profile = {
         keyboard: {},
         deck: {},
         deckModeShifts: {},
+        deckTrackpadModes: { ltrackpad: 'mouse', rtrackpad: 'mouse' },
       },
     },
   ],

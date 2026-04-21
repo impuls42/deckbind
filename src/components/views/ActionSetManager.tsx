@@ -13,7 +13,7 @@ export function ActionSetManager() {
       id: Math.random().toString(36).substring(2, 9),
       name: 'New Action Set',
       actions: [],
-      bindings: { keyboard: {}, deck: {}, deckModeShifts: {} },
+      bindings: { keyboard: {}, deck: {}, deckModeShifts: {}, deckTrackpadModes: { ltrackpad: 'mouse', rtrackpad: 'mouse' } },
     });
   };
 

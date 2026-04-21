@@ -29,6 +29,7 @@ interface ProfileState {
   removeBinding: (setId: string, device: 'keyboard' | 'deck', actionId: string, bindingIndex: number) => void;
   moveBinding: (setId: string, device: 'keyboard' | 'deck', actionId: string, fromIndex: number, toIndex: number) => void;
   swapModeShiftSlotActions: (setId: string, inputId: string, index: number, slotA: string, slotB: string) => void;
+  setTrackpadMode: (setId: string, trackpad: 'ltrackpad' | 'rtrackpad', mode: 'mouse' | 'stick' | 'dpad4' | 'dpad8') => void;
   
   // Mode Shift Management
   addModeShift: (setId: string, inputId: string, modeShift: ModeShift) => void;
@@ -284,6 +285,26 @@ export const useProfileStore = create<ProfileState>()(
                   deckModeShifts: {
                     ...(s.bindings.deckModeShifts || {}),
                     [inputId]: msList,
+                  },
+                },
+              };
+            }),
+          },
+        })),
+
+      setTrackpadMode: (setId, trackpad, mode) =>
+        set((state) => ({
+          profileData: {
+            ...state.profileData,
+            actionSets: state.profileData.actionSets.map((s) => {
+              if (s.id !== setId) return s;
+              return {
+                ...s,
+                bindings: {
+                  ...s.bindings,
+                  deckTrackpadModes: {
+                    ...(s.bindings.deckTrackpadModes || { ltrackpad: 'mouse', rtrackpad: 'mouse' }),
+                    [trackpad]: mode,
                   },
                 },
               };

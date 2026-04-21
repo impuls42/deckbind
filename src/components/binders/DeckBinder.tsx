@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useProfileStore } from '../../store/useProfileStore';
 import { Plus, X, Search, GripVertical, ChevronLeft, ChevronDown, ChevronRight, ChevronsUpDown, ChevronsDownUp, Layers, Settings, Minus, Trash2, Grid3x3, Circle } from 'lucide-react';
-import type { ModeShift } from '../../types/schema';
+import type { ModeShift, TrackpadMode } from '../../types/schema';
 import { isActionBound, getModeShiftBindingsForAction, getModeShiftBindingsForInput } from '../../utils/bindingUtils';
 
 // Inputs that support mode shift
@@ -38,13 +38,21 @@ const DECK_BUTTONS = [
   { id: 'deck.dpad_down', label: 'D-Down' },
   { id: 'deck.dpad_left', label: 'D-Left' },
   { id: 'deck.dpad_right', label: 'D-Right' },
+  { id: 'deck.ltrackpad_up', label: 'LPad-Up' },
+  { id: 'deck.ltrackpad_down', label: 'LPad-Down' },
+  { id: 'deck.ltrackpad_left', label: 'LPad-Left' },
+  { id: 'deck.ltrackpad_right', label: 'LPad-Right' },
+  { id: 'deck.rtrackpad_up', label: 'RPad-Up' },
+  { id: 'deck.rtrackpad_down', label: 'RPad-Down' },
+  { id: 'deck.rtrackpad_left', label: 'RPad-Left' },
+  { id: 'deck.rtrackpad_right', label: 'RPad-Right' },
 ];
 
 // Sidebar view states
 type SidebarView = 'actions' | 'binding' | 'inspect' | 'modeshift' | 'modeshift-pick-action';
 
 export function DeckBinder() {
-  const { profileData, activeActionSetId, setBindings, addModeShift, setModeShift, removeModeShift, setModeShiftSlot } = useProfileStore();
+  const { profileData, activeActionSetId, setBindings, addModeShift, setModeShift, removeModeShift, setModeShiftSlot, setTrackpadMode } = useProfileStore();
   const [activeActionId, setActiveActionId] = useState<string | null>(null);
   const [activeBindingIndex, setActiveBindingIndex] = useState<number>(0);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
@@ -98,7 +106,7 @@ export function DeckBinder() {
       if (matchingActions.length > 0) filtered[cat] = matchingActions;
     });
     return filtered;
-  }, [groupedActions, searchTerm, activeSet]);
+  }, [groupedActions, searchTerm]);
 
   // Determine current sidebar view
   const getSidebarView = (): SidebarView => {
@@ -340,7 +348,40 @@ export function DeckBinder() {
     setModeShift(activeSet.id, modeShiftInputId, activeModeShiftIndex, { ...ms, enableButton: newBtn });
   };
 
-  const renderButton = (btnId: string, label: string | React.ReactNode, customClass: string = '') => {
+  const renderModeShiftBadges = (btnId: string) => {
+    const isShiftable = MODE_SHIFTABLE_INPUTS.includes(btnId);
+    const hasShift = hasModeShift(btnId);
+    const isEditingShift = modeShiftInputId === btnId;
+    if (!isShiftable && !hasShift) return null;
+
+    return (
+      <>
+        {hasShift && !isEditingShift && (
+          <div className="absolute -top-1.5 -left-1.5 min-w-[1rem] h-4 px-1 bg-violet-500 rounded-full flex items-center justify-center shadow-md pointer-events-none z-30 gap-0.5">
+            {modeShifts[btnId]?.length > 1 && <span className="text-[9px] font-bold text-white">{modeShifts[btnId].length}</span>}
+            {modeShifts[btnId]?.[0]?.menuType === 'touch'
+              ? <Grid3x3 className="w-2.5 h-2.5 text-white" />
+              : <Layers className="w-2.5 h-2.5 text-white" />
+            }
+          </div>
+        )}
+        {isShiftable && !currentAction && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              openModeShiftEditor(btnId);
+            }}
+            className="absolute -bottom-2 -right-2 w-6 h-6 bg-neutral-700 hover:bg-violet-600 border border-neutral-600 hover:border-violet-400 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all z-30 cursor-pointer shadow-lg"
+            title="Configure Mode Shift"
+          >
+            <Settings className="w-3 h-3 text-neutral-300" />
+          </button>
+        )}
+      </>
+    );
+  };
+
+  const renderButton = (btnId: string, label: string | React.ReactNode, customClass: string = '', wrapperClass: string = '', hideBadges: boolean = false) => {
     const hl = getHighlightState(btnId);
     const dots = getButtonDots(btnId);
     const isShiftable = MODE_SHIFTABLE_INPUTS.includes(btnId);
@@ -361,7 +402,7 @@ export function DeckBinder() {
               : 'bg-neutral-800 text-neutral-400 border-neutral-700 hover:bg-neutral-700 hover:text-white';
 
     return (
-      <div key={btnId} className="relative group">
+      <div key={btnId} className={`relative group ${wrapperClass}`}>
         <button
           onClick={() => handleInputClick(btnId)}
           className={`relative border ${bg} transition-all flex items-center justify-center text-sm font-medium cursor-pointer ${customClass}`}
@@ -373,7 +414,7 @@ export function DeckBinder() {
               ))}
             </div>
           )}
-          {hasShift && !isEditingShift && (
+          {hasShift && !isEditingShift && !hideBadges && (
             <div className="absolute -top-1.5 -left-1.5 min-w-[1rem] h-4 px-1 bg-violet-500 rounded-full flex items-center justify-center shadow-md pointer-events-none z-20 gap-0.5">
               {modeShifts[btnId]?.length > 1 && <span className="text-[9px] font-bold text-white">{modeShifts[btnId].length}</span>}
               {modeShifts[btnId]?.[0]?.menuType === 'touch'
@@ -392,7 +433,7 @@ export function DeckBinder() {
           )}
           {label}
         </button>
-        {isShiftable && !currentAction && (
+        {isShiftable && !currentAction && !hideBadges && (
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -646,6 +687,58 @@ export function DeckBinder() {
             })
           )}
         </svg>
+      </div>
+    );
+  };
+
+  const renderTrackpad = (side: 'ltrackpad' | 'rtrackpad') => {
+    const mode = activeSet?.bindings.deckTrackpadModes?.[side] || 'mouse';
+    const isLeft = side === 'ltrackpad';
+    const labelPrefix = isLeft ? 'L' : 'R';
+
+    return (
+      <div className="mt-2 flex flex-col items-center gap-1.5">
+        <select
+          value={mode}
+          onChange={(e) => setTrackpadMode(activeSet.id, side, e.target.value as TrackpadMode)}
+          className="bg-neutral-800 border border-neutral-700 rounded px-2 py-0.5 text-[9px] text-neutral-400 focus:outline-none focus:border-indigo-500 uppercase tracking-wider cursor-pointer"
+        >
+          <option value="mouse">Mouse</option>
+          <option value="stick">Joystick</option>
+          <option value="dpad4">4-Way D-Pad</option>
+          <option value="dpad8">8-Way D-Pad</option>
+        </select>
+
+        <div className="relative w-28 h-28 rounded-xl bg-neutral-900 border border-neutral-800 shadow-inner flex group">
+          {mode === 'mouse' || mode === 'stick' ? (
+            <div className="w-full h-full flex items-center justify-center relative">
+              {renderButton(`deck.${side}_click`, mode === 'stick' ? (
+                <div className="flex flex-col items-center gap-1.5">
+                  <div className="w-6 h-6 rounded-full border-[3px] border-neutral-700 bg-neutral-800 shadow-md flex items-center justify-center pointer-events-none">
+                    <div className="w-1.5 h-1.5 rounded-full bg-neutral-600" />
+                  </div>
+                  <span className="text-xs text-neutral-400 font-medium">{labelPrefix}-Pad</span>
+                </div>
+              ) : `${labelPrefix}-Pad`, 'w-full h-full !border-0 bg-transparent hover:bg-neutral-800/50 rounded-xl', 'absolute inset-0 w-full h-full', true)}
+            </div>
+          ) : (
+            <div className="w-full h-full grid grid-cols-3 grid-rows-3 gap-[1px] bg-neutral-800/50 rounded-[inherit] overflow-hidden">
+              {mode === 'dpad8' ? renderButton(`deck.${side}_up_left`, '↖', 'w-full h-full text-[10px] !border-0 bg-neutral-900/80 hover:bg-neutral-700', 'w-full h-full') : <div className="bg-neutral-900/80" />}
+              {renderButton(`deck.${side}_up`, '▲', 'w-full h-full text-[10px] !border-0 bg-neutral-900/80 hover:bg-neutral-700', 'w-full h-full')}
+              {mode === 'dpad8' ? renderButton(`deck.${side}_up_right`, '↗', 'w-full h-full text-[10px] !border-0 bg-neutral-900/80 hover:bg-neutral-700', 'w-full h-full') : <div className="bg-neutral-900/80" />}
+              
+              {renderButton(`deck.${side}_left`, '◀', 'w-full h-full text-[10px] !border-0 bg-neutral-900/80 hover:bg-neutral-700', 'w-full h-full')}
+              {renderButton(`deck.${side}_click`, `${labelPrefix}-Pad`, 'w-full h-full text-[10px] font-bold z-10 !border-0 bg-neutral-800 shadow-md hover:bg-neutral-700', 'w-full h-full', true)}
+              {renderButton(`deck.${side}_right`, '▶', 'w-full h-full text-[10px] !border-0 bg-neutral-900/80 hover:bg-neutral-700', 'w-full h-full')}
+              
+              {mode === 'dpad8' ? renderButton(`deck.${side}_down_left`, '↙', 'w-full h-full text-[10px] !border-0 bg-neutral-900/80 hover:bg-neutral-700', 'w-full h-full') : <div className="bg-neutral-900/80" />}
+              {renderButton(`deck.${side}_down`, '▼', 'w-full h-full text-[10px] !border-0 bg-neutral-900/80 hover:bg-neutral-700', 'w-full h-full')}
+              {mode === 'dpad8' ? renderButton(`deck.${side}_down_right`, '↘', 'w-full h-full text-[10px] !border-0 bg-neutral-900/80 hover:bg-neutral-700', 'w-full h-full') : <div className="bg-neutral-900/80" />}
+            </div>
+          )}
+          {renderModeShiftBadges(`deck.${side}_click`)}
+          {renderModeShiftOverlay(`deck.${side}_click`)}
+        </div>
       </div>
     );
   };
@@ -1190,10 +1283,7 @@ export function DeckBinder() {
             </div>
 
             {/* Left Trackpad */}
-            <div className="mt-2 flex justify-center relative">
-              {renderButton('deck.ltrackpad_click', 'L-Pad', 'w-28 h-28 rounded-xl bg-neutral-900')}
-              {renderModeShiftOverlay('deck.ltrackpad_click')}
-            </div>
+            {renderTrackpad('ltrackpad')}
 
             {/* Back Grips */}
             <div className="flex justify-between gap-3 mt-3">
@@ -1240,10 +1330,7 @@ export function DeckBinder() {
             </div>
 
             {/* Right Trackpad */}
-            <div className="mt-2 flex justify-center relative">
-              {renderButton('deck.rtrackpad_click', 'R-Pad', 'w-28 h-28 rounded-xl bg-neutral-900')}
-              {renderModeShiftOverlay('deck.rtrackpad_click')}
-            </div>
+            {renderTrackpad('rtrackpad')}
 
             {/* Back Grips */}
             <div className="flex justify-between gap-3 mt-3">
