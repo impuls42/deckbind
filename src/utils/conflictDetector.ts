@@ -49,17 +49,6 @@ export function detectConflicts(actionSet: ActionSet, device: 'keyboard' | 'deck
       if (isSame) {
         addConflict(conflicts, a.actionId, 'hard', b.actionId, `Conflicts with "${actionSet.actions.find(act => act.id === b.actionId)?.name}"`);
         addConflict(conflicts, b.actionId, 'hard', a.actionId, `Conflicts with "${actionSet.actions.find(act => act.id === a.actionId)?.name}"`);
-      } else {
-        const isASubsetOfB = a.inputs.every(val => b.inputs.includes(val));
-        const isBSubsetOfA = b.inputs.every(val => a.inputs.includes(val));
-        
-        if (isASubsetOfB) {
-          addConflict(conflicts, b.actionId, 'subset', a.actionId, `Subsumed by "${actionSet.actions.find(act => act.id === a.actionId)?.name}"`);
-          addConflict(conflicts, a.actionId, 'subset', b.actionId, `Subsets "${actionSet.actions.find(act => act.id === b.actionId)?.name}"`);
-        } else if (isBSubsetOfA) {
-          addConflict(conflicts, a.actionId, 'subset', b.actionId, `Subsumed by "${actionSet.actions.find(act => act.id === b.actionId)?.name}"`);
-          addConflict(conflicts, b.actionId, 'subset', a.actionId, `Subsets "${actionSet.actions.find(act => act.id === a.actionId)?.name}"`);
-        }
       }
     }
   }

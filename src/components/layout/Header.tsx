@@ -15,10 +15,13 @@ export function Header({ view, setView }: HeaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleExport = () => {
+    const fileName = profileData.profile.name.toLowerCase().endsWith('.json') 
+      ? profileData.profile.name 
+      : `${profileData.profile.name}.json`;
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(profileData, null, 2));
     const dlAnchorElem = document.createElement('a');
     dlAnchorElem.setAttribute("href", dataStr);
-    dlAnchorElem.setAttribute("download", `${profileData.profile.name}.json`);
+    dlAnchorElem.setAttribute("download", fileName);
     dlAnchorElem.click();
   };
 
@@ -43,7 +46,7 @@ export function Header({ view, setView }: HeaderProps) {
     reader.readAsText(file);
   };
 
-  const menuItems: { id: ViewMode; label: string; icon: any }[] = [
+  const menuItems: { id: ViewMode; label: string; icon: React.ElementType }[] = [
     { id: 'sets', label: 'Action Sets', icon: Blocks },
     { id: 'actions', label: 'Actions', icon: AlignStartVertical },
     { id: 'keyboard', label: 'Keyboard', icon: Keyboard },
@@ -87,17 +90,19 @@ export function Header({ view, setView }: HeaderProps) {
           <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleImport} />
           <button 
             onClick={() => fileInputRef.current?.click()}
-            className="p-2 text-neutral-400 hover:text-neutral-100 hover:bg-neutral-800 rounded-md transition-colors" 
-            title="Import JSON"
+            className="p-2 text-neutral-400 hover:text-neutral-100 hover:bg-neutral-800 rounded-md transition-colors flex items-center gap-2" 
+            title="Import (.json)"
           >
             <Upload className="w-5 h-5" />
+            <span className="text-xs font-medium">Import .json</span>
           </button>
           <button 
             onClick={handleExport}
-            className="p-2 text-neutral-400 hover:text-neutral-100 hover:bg-neutral-800 rounded-md transition-colors" 
-            title="Export JSON"
+            className="p-2 text-neutral-400 hover:text-neutral-100 hover:bg-neutral-800 rounded-md transition-colors flex items-center gap-2" 
+            title="Export (.json)"
           >
             <Download className="w-5 h-5" />
+            <span className="text-xs font-medium">Export .json</span>
           </button>
         </div>
       </div>

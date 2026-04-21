@@ -13,12 +13,22 @@ function App() {
   return (
     <div className="h-screen bg-neutral-950 text-neutral-50 flex flex-col font-sans selection:bg-indigo-500/30 overflow-hidden">
       <Header view={view} setView={setView} />
-      <main className="flex-1 overflow-hidden p-6 flex flex-col">
-        {view === 'sets' && <ActionSetManager />}
-        {view === 'actions' && <ActionManager />}
-        {view === 'keyboard' && <KeyboardBinder />}
-        {view === 'deck' && <DeckBinder />}
-        {view === 'review' && <ReviewTable />}
+      <main className="flex-1 overflow-hidden p-6 flex flex-col relative">
+        <div className={`flex-1 flex flex-col overflow-hidden ${view === 'sets' ? '' : 'hidden'}`}>
+          <ActionSetManager />
+        </div>
+        <div className={`flex-1 flex flex-col overflow-hidden ${view === 'actions' ? '' : 'hidden'}`}>
+          <ActionManager />
+        </div>
+        <div className={`flex-1 flex flex-col overflow-hidden ${view === 'keyboard' ? '' : 'hidden'}`}>
+          <KeyboardBinder />
+        </div>
+        <div className={`flex-1 flex flex-col overflow-hidden ${view === 'deck' ? '' : 'hidden'}`}>
+          <DeckBinder />
+        </div>
+        <div className={`flex-1 flex flex-col overflow-hidden ${view === 'review' ? '' : 'hidden'}`}>
+          <ReviewTable />
+        </div>
       </main>
     </div>
   );

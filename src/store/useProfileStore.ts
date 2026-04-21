@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { DEFAULT_PROFILE } from '../types/schema';
-import type { Action, ActionSet, Profile, ProfileInfo } from '../types/schema';
+import type { Action, ActionSet, ModeShift, Profile, ProfileInfo } from '../types/schema';
 
 interface ProfileState {
   profileData: Profile;
@@ -27,6 +27,12 @@ interface ProfileState {
   setBindings: (setId: string, device: 'keyboard' | 'deck', actionId: string, bindings: string[][]) => void;
   addBinding: (setId: string, device: 'keyboard' | 'deck', actionId: string, binding: string[]) => void;
   removeBinding: (setId: string, device: 'keyboard' | 'deck', actionId: string, bindingIndex: number) => void;
+  
+  // Mode Shift Management
+  addModeShift: (setId: string, inputId: string, modeShift: ModeShift) => void;
+  setModeShift: (setId: string, inputId: string, index: number, modeShift: ModeShift) => void;
+  removeModeShift: (setId: string, inputId: string, index: number) => void;
+  setModeShiftSlot: (setId: string, inputId: string, index: number, slotId: string, actionId: string | null) => void;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
@@ -137,6 +143,22 @@ export const useProfileStore = create<ProfileState>()(
               const newBindings = JSON.parse(JSON.stringify(s.bindings));
               if (newBindings.keyboard[actionId]) delete newBindings.keyboard[actionId];
               if (newBindings.deck[actionId]) delete newBindings.deck[actionId];
+              
+              // Clean up mode shift slots referencing deleted action
+              if (newBindings.deckModeShifts) {
+                for (const inputId in newBindings.deckModeShifts) {
+                  const msList = newBindings.deckModeShifts[inputId];
+                  if (Array.isArray(msList)) {
+                    msList.forEach(ms => {
+                      for (const slotId in ms.slots) {
+                        if (ms.slots[slotId] === actionId) {
+                          delete ms.slots[slotId];
+                        }
+                      }
+                    });
+                  }
+                }
+              }
 
               return {
                 ...s,
@@ -202,6 +224,107 @@ export const useProfileStore = create<ProfileState>()(
                   [device]: {
                     ...s.bindings[device],
                     [actionId]: currentBindings.filter((_, i) => i !== bindingIndex),
+                  },
+                },
+              };
+            }),
+          },
+        })),
+
+      // Mode Shift Management
+      addModeShift: (setId, inputId, modeShift) =>
+        set((state) => ({
+          profileData: {
+            ...state.profileData,
+            actionSets: state.profileData.actionSets.map((s) => {
+              if (s.id !== setId) return s;
+              const currentShifts = Array.isArray(s.bindings.deckModeShifts?.[inputId]) 
+                ? s.bindings.deckModeShifts![inputId] 
+                : [];
+              return {
+                ...s,
+                bindings: {
+                  ...s.bindings,
+                  deckModeShifts: {
+                    ...(s.bindings.deckModeShifts || {}),
+                    [inputId]: [...currentShifts, modeShift],
+                  },
+                },
+              };
+            }),
+          },
+        })),
+
+      setModeShift: (setId, inputId, index, modeShift) =>
+        set((state) => ({
+          profileData: {
+            ...state.profileData,
+            actionSets: state.profileData.actionSets.map((s) => {
+              if (s.id !== setId) return s;
+              const currentShifts = [...(Array.isArray(s.bindings.deckModeShifts?.[inputId]) ? s.bindings.deckModeShifts![inputId] : [])];
+              currentShifts[index] = modeShift;
+              return {
+                ...s,
+                bindings: {
+                  ...s.bindings,
+                  deckModeShifts: {
+                    ...(s.bindings.deckModeShifts || {}),
+                    [inputId]: currentShifts,
+                  },
+                },
+              };
+            }),
+          },
+        })),
+
+      removeModeShift: (setId, inputId, index) =>
+        set((state) => ({
+          profileData: {
+            ...state.profileData,
+            actionSets: state.profileData.actionSets.map((s) => {
+              if (s.id !== setId) return s;
+              const currentShifts = Array.isArray(s.bindings.deckModeShifts?.[inputId]) ? s.bindings.deckModeShifts![inputId] : [];
+              const newShifts = currentShifts.filter((_, i) => i !== index);
+              const newModeShifts = { ...(s.bindings.deckModeShifts || {}) };
+              if (newShifts.length === 0) {
+                delete newModeShifts[inputId];
+              } else {
+                newModeShifts[inputId] = newShifts;
+              }
+              return {
+                ...s,
+                bindings: {
+                  ...s.bindings,
+                  deckModeShifts: newModeShifts,
+                },
+              };
+            }),
+          },
+        })),
+
+      setModeShiftSlot: (setId, inputId, index, slotId, actionId) =>
+        set((state) => ({
+          profileData: {
+            ...state.profileData,
+            actionSets: state.profileData.actionSets.map((s) => {
+              if (s.id !== setId) return s;
+              const currentShifts = [...(Array.isArray(s.bindings.deckModeShifts?.[inputId]) ? s.bindings.deckModeShifts![inputId] : [])];
+              const ms = currentShifts[index];
+              if (!ms) return s;
+              const newSlots = { ...ms.slots };
+              if (actionId === null) {
+                delete newSlots[slotId];
+              } else {
+                newSlots[slotId] = actionId;
+              }
+              currentShifts[index] = { ...ms, slots: newSlots };
+              return {
+                ...s,
+                bindings: {
+                  ...s.bindings,
+                  deckModeShifts: {
+                    ...(s.bindings.deckModeShifts || {}),
+                    [inputId]: currentShifts,
                   },
                 },
               };

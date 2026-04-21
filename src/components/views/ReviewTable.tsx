@@ -2,7 +2,8 @@ import { useState, useMemo } from 'react';
 import { useProfileStore } from '../../store/useProfileStore';
 import { detectConflicts } from '../../utils/conflictDetector';
 import type { ActionConflict } from '../../utils/conflictDetector';
-import { AlertCircle, AlertTriangle, FileCode, FileText, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, AlertTriangle, FileCode, FileText, CheckCircle2, Layers } from 'lucide-react';
+import { getModeShiftBindingsForAction } from '../../utils/bindingUtils';
 
 export function ReviewTable() {
   const { profileData } = useProfileStore();
@@ -33,8 +34,26 @@ export function ReviewTable() {
     md += `| Action | Keyboard | Steam Deck |\n`;
     md += `|---|---|---|\n`;
     activeSet.actions.forEach(a => {
-      const kb = (activeSet.bindings.keyboard[a.id] || []).map(combo => combo.map(k => k.replace('kb.', '').toUpperCase()).join(' + ')).join(' OR ') || '*unbound*';
-      const deck = (activeSet.bindings.deck[a.id] || []).map(combo => combo.map(k => k.replace('deck.', '').toUpperCase()).join(' + ')).join(' OR ') || '*unbound*';
+      const kb = (activeSet.bindings.keyboard[a.id] || [])
+        .filter(combo => combo.length > 0)
+        .map(combo => combo.map(k => k.replace('kb.', '').toUpperCase()).join(' + '))
+        .join(' OR ') || '*unbound*';
+      
+      const deckPrimary = (activeSet.bindings.deck[a.id] || [])
+        .filter(combo => combo.length > 0)
+        .map(combo => combo.map(k => k.replace('deck.', '').toUpperCase()).join(' + '))
+        .join(' OR ');
+      const modeShiftData = getModeShiftBindingsForAction(a.id, activeSet);
+      const deckModeShift = modeShiftData.map(ms => {
+        const inputLabel = ms.inputId.replace('deck.', '').toUpperCase();
+        const enableLabel = ms.enableButton.replace('deck.', '').toUpperCase();
+        const slotLabel = ms.menuType === 'touch' 
+          ? `R${Math.floor(parseInt(ms.slotId) / (ms.gridCols || 2)) + 1}C${(parseInt(ms.slotId) % (ms.gridCols || 2)) + 1}`
+          : `Slot ${parseInt(ms.slotId) + 1}`;
+        return `[Hold ${enableLabel}] ${inputLabel} ${ms.menuType === 'touch' ? 'Grid' : 'Radial'} ${slotLabel}`;
+      }).join(' OR ');
+
+      const deck = [deckPrimary, deckModeShift].filter(Boolean).join(' OR ') || '*unbound*';
       md += `| ${a.name} | ${kb} | ${deck} |\n`;
     });
     navigator.clipboard.writeText(md).then(() => alert('Copied to clipboard'));
@@ -95,8 +114,8 @@ export function ReviewTable() {
           </thead>
           <tbody>
             {activeSet.actions.map(action => {
-              const kbCombos = activeSet.bindings.keyboard[action.id] || [];
-              const deckCombos = activeSet.bindings.deck[action.id] || [];
+              const kbCombos = (activeSet.bindings.keyboard[action.id] || []).filter(c => c.length > 0);
+              const deckCombos = (activeSet.bindings.deck[action.id] || []).filter(c => c.length > 0);
               
               return (
                 <tr key={action.id} className="border-b border-neutral-800/50 hover:bg-neutral-800/30 transition-colors">
@@ -127,8 +146,8 @@ export function ReviewTable() {
                   <td className="px-6 py-4">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 mt-1">{getConflictBadge(deckConflicts, action.id)}</div>
-                      <div className="flex flex-col gap-1">
-                        {deckCombos.length === 0 && <span className="text-neutral-600 italic mt-0.5">Unbound</span>}
+                      <div className="flex flex-col gap-2">
+                        {/* Primary Bindings */}
                         {deckCombos.map((combo, idx) => (
                           <div key={idx} className="flex flex-wrap gap-1">
                             {combo.map(k => (
@@ -138,6 +157,39 @@ export function ReviewTable() {
                             ))}
                           </div>
                         ))}
+                        
+                        {/* Mode Shift Bindings */}
+                        {getModeShiftBindingsForAction(action.id, activeSet).map((ms, idx) => {
+                          const inputLabel = ms.inputId.replace('deck.', '').replace('_click', '').toUpperCase();
+                          const enableLabel = ms.enableButton.replace('deck.', '').toUpperCase();
+                          const slotIndex = parseInt(ms.slotId);
+                          
+                          // Format slot label based on menu type
+                          const slotLabel = ms.menuType === 'touch'
+                            ? `R${Math.floor(slotIndex / (ms.gridCols || 2)) + 1}C${(slotIndex % (ms.gridCols || 2)) + 1}`
+                            : `Slot ${slotIndex + 1}`;
+
+                          return (
+                            <div key={`ms-${idx}`} className="flex items-center gap-2 text-[11px] whitespace-nowrap">
+                              <div className="flex items-center gap-1 px-1.5 py-0.5 bg-violet-950/40 border border-violet-500/30 rounded text-violet-300 font-bold shrink-0 leading-none">
+                                <Layers className="w-2.5 h-2.5" />
+                                <span className="uppercase tracking-tighter text-[9px]">Layer {ms.layerIndex + 1}</span>
+                              </div>
+                              <div className="flex items-center gap-1 text-neutral-400">
+                                <span className="text-neutral-500 text-[10px]">via</span>
+                                <span className="px-1 py-0.5 bg-neutral-800 border border-neutral-700 rounded text-[9px] font-mono text-neutral-300 leading-none">{enableLabel}</span>
+                                <span className="text-neutral-500 text-[10px]">on</span>
+                                <span className="text-neutral-300 font-medium">{inputLabel}</span>
+                                <span className="text-neutral-500">→</span>
+                                <span className="text-indigo-400 font-bold">{slotLabel}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {deckCombos.length === 0 && getModeShiftBindingsForAction(action.id, activeSet).length === 0 && (
+                          <span className="text-neutral-600 italic mt-0.5">Unbound</span>
+                        )}
                       </div>
                     </div>
                   </td>
