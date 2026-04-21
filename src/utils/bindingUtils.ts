@@ -102,3 +102,41 @@ export const getModeShiftBindingsForInput = (inputId: string, actionSet: ActionS
   
   return result;
 };
+
+/**
+ * Returns all Mode Shift layers and slots where the specified input acts as the enabler.
+ */
+export const getModeShiftBindingsEnabledByInput = (inputId: string, actionSet: ActionSet) => {
+  const result: (ModeShiftBindingInfo & { actionName: string; actionId: string; targetInputId: string })[] = [];
+  const modeShifts = actionSet.bindings.deckModeShifts || {};
+  
+  for (const targetInputId in modeShifts) {
+    const layers = modeShifts[targetInputId];
+    if (Array.isArray(layers)) {
+      layers.forEach((ms, layerIndex) => {
+        if (ms.enableButton === inputId) {
+          for (const slotId in ms.slots) {
+            const actionId = ms.slots[slotId];
+            const action = actionSet.actions.find(a => a.id === actionId);
+            if (action) {
+              result.push({
+                inputId: targetInputId,
+                targetInputId,
+                layerIndex,
+                enableButton: inputId,
+                slotId,
+                menuType: ms.menuType || 'radial',
+                gridRows: ms.gridRows,
+                gridCols: ms.gridCols,
+                actionName: action.name,
+                actionId
+              });
+            }
+          }
+        }
+      });
+    }
+  }
+  
+  return result;
+};

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useProfileStore } from '../../store/useProfileStore';
 import { Plus, X, Search, GripVertical, ChevronLeft, ChevronDown, ChevronRight, ChevronsUpDown, ChevronsDownUp, Layers, Settings, Minus, Trash2, Grid3x3, Circle } from 'lucide-react';
 import type { ModeShift, TrackpadMode } from '../../types/schema';
-import { isActionBound, getModeShiftBindingsForAction, getModeShiftBindingsForInput } from '../../utils/bindingUtils';
+import { isActionBound, getModeShiftBindingsForAction, getModeShiftBindingsForInput, getModeShiftBindingsEnabledByInput } from '../../utils/bindingUtils';
 
 // Inputs that support mode shift
 const MODE_SHIFTABLE_INPUTS = [
@@ -1491,8 +1491,9 @@ export function DeckBinder() {
                 });
                 
                 const msBindingsForInput = getModeShiftBindingsForInput(inspectedInputId, activeSet);
+                const msBindingsEnabledByInput = getModeShiftBindingsEnabledByInput(inspectedInputId, activeSet);
 
-                if (inspectedActions.length === 0 && msBindingsForInput.length === 0) {
+                if (inspectedActions.length === 0 && msBindingsForInput.length === 0 && msBindingsEnabledByInput.length === 0) {
                   return <p className="text-neutral-500 text-sm text-center mt-8">No actions bound to this input.</p>;
                 }
 
@@ -1571,6 +1572,46 @@ export function DeckBinder() {
                                 >
                                   View Action Details
                                 </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {msBindingsEnabledByInput.length > 0 && (
+                      <div className="mt-2">
+                        <h4 className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-3 ml-1 flex items-center gap-2">
+                          <Layers className="w-3 h-3" />
+                          Mode Shift Activator For
+                        </h4>
+                        <div className="flex flex-col gap-2">
+                          {msBindingsEnabledByInput.map((ms, idx) => {
+                            const slotIndex = parseInt(ms.slotId);
+                            const slotLabel = ms.menuType === 'touch'
+                              ? `R${Math.floor(slotIndex / (ms.gridCols || 2)) + 1}C${(slotIndex % (ms.gridCols || 2)) + 1}`
+                              : `Slot ${slotIndex + 1}`;
+                            const targetLabel = ms.targetInputId.replace('deck.', '').replace('_click', '').toUpperCase();
+
+                            return (
+                              <div key={idx} className="p-3 bg-emerald-950/30 border border-emerald-500/20 rounded-xl shadow-sm">
+                                <div className="flex justify-between items-center mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider">Layer {ms.layerIndex + 1}</span>
+                                  </div>
+                                  <div className="px-1.5 py-0.5 bg-emerald-500/20 rounded text-[9px] font-bold text-emerald-400 uppercase leading-none">
+                                    {ms.menuType}
+                                  </div>
+                                </div>
+                                <div className="flex justify-between items-center mb-3">
+                                  <span className="text-sm font-medium text-neutral-200 truncate">{ms.actionName}</span>
+                                  <span className="text-xs text-indigo-400 font-bold shrink-0">{slotLabel}</span>
+                                </div>
+                                <div className="flex items-center gap-2 p-2 bg-neutral-900/50 rounded-lg border border-neutral-800 mb-1">
+                                  <span className="px-1.5 py-0.5 bg-neutral-800 border border-neutral-700 rounded text-[10px] font-mono text-neutral-300 leading-none">TARGET</span>
+                                  <span className="text-neutral-500 font-bold">→</span>
+                                  <span className="font-semibold text-neutral-200 text-xs">{targetLabel}</span>
+                                </div>
                               </div>
                             );
                           })}
