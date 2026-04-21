@@ -34,7 +34,7 @@ export function KeyboardBinder() {
 
   const groupedActions = useMemo(() => {
     if (!activeSet) return {};
-    const groups: Record<string, typeof activeSet.actions> = {};
+    const groups: Record<string, NonNullable<typeof activeSet>['actions']> = {};
     activeSet.actions.forEach(a => {
       const c = a.category?.trim() || 'Uncategorized';
       if (!groups[c]) groups[c] = [];
@@ -49,7 +49,7 @@ export function KeyboardBinder() {
   const filteredGroupedActions = useMemo(() => {
     if (!searchTerm.trim()) return groupedActions;
     const lowerTerm = searchTerm.toLowerCase();
-    const filtered: Record<string, typeof activeSet.actions> = {};
+    const filtered: Record<string, NonNullable<typeof activeSet>['actions']> = {};
     Object.keys(groupedActions).forEach(cat => {
       const catMatches = cat.toLowerCase().includes(lowerTerm);
       const matchingActions = groupedActions[cat].filter(a => 
