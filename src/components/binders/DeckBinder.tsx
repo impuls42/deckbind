@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useProfileStore } from '../../store/useProfileStore';
-import { Plus, X, ChevronLeft, ChevronDown, ChevronRight, ChevronsUpDown, ChevronsDownUp, Layers, Settings, Minus, Trash2, Grid3x3, Circle } from 'lucide-react';
+import { Plus, X, Search, GripVertical, ChevronLeft, ChevronDown, ChevronRight, ChevronsUpDown, ChevronsDownUp, Layers, Settings, Minus, Trash2, Grid3x3, Circle } from 'lucide-react';
 import type { ModeShift } from '../../types/schema';
 import { isActionBound, getModeShiftBindingsForAction, getModeShiftBindingsForInput } from '../../utils/bindingUtils';
 
@@ -56,8 +56,12 @@ export function DeckBinder() {
   const [modeShiftPickSlot, setModeShiftPickSlot] = useState<string | null>(null);
   const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
   const [modalExpandedCategories, setModalExpandedCategories] = useState<Set<string>>(new Set());
+  const [searchTerm, setSearchTerm] = useState('');
+  const [modalSearchTerm, setModalSearchTerm] = useState('');
+  const [draggedSlotId, setDraggedSlotId] = useState<string | null>(null);
 
   const activeSet = profileData.actionSets.find((s) => s.id === activeActionSetId);
+  const swapModeShiftSlotActions = useProfileStore((state) => state.swapModeShiftSlotActions);
 
   const toggleCategory = (cat: string) => {
     setExpandedCategories(prev => {
@@ -82,6 +86,20 @@ export function DeckBinder() {
   const handleExpandAll = () => setExpandedCategories(new Set(Object.keys(groupedActions)));
   const handleCollapseAll = () => setExpandedCategories(new Set());
 
+  const filteredSidebarActions = useMemo(() => {
+    if (!searchTerm.trim()) return groupedActions;
+    const lowerTerm = searchTerm.toLowerCase();
+    const filtered: Record<string, typeof activeSet.actions> = {};
+    Object.keys(groupedActions).forEach(cat => {
+      const catMatches = cat.toLowerCase().includes(lowerTerm);
+      const matchingActions = groupedActions[cat].filter(a => 
+        a.name.toLowerCase().includes(lowerTerm) || catMatches
+      );
+      if (matchingActions.length > 0) filtered[cat] = matchingActions;
+    });
+    return filtered;
+  }, [groupedActions, searchTerm, activeSet]);
+
   // Determine current sidebar view
   const getSidebarView = (): SidebarView => {
     if (modeShiftPickSlot !== null) return 'modeshift-pick-action';
@@ -94,17 +112,17 @@ export function DeckBinder() {
   const sidebarView = getSidebarView();
 
   const visibleActionsList = useMemo(() => {
-    const sortedCats = Object.keys(groupedActions).sort((a, b) =>
+    const sortedCats = Object.keys(filteredSidebarActions).sort((a, b) =>
       a === 'Uncategorized' ? 1 : b === 'Uncategorized' ? -1 : a.localeCompare(b)
     );
     const visible: string[] = [];
     sortedCats.forEach(cat => {
       if (expandedCategories.has(cat)) {
-        groupedActions[cat].forEach(a => visible.push(a.id));
+        filteredSidebarActions[cat].forEach(a => visible.push(a.id));
       }
     });
     return visible;
-  }, [groupedActions, expandedCategories]);
+  }, [filteredSidebarActions, expandedCategories]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -905,35 +923,58 @@ export function DeckBinder() {
                   : null;
 
                 return (
-                  <button
+                  <div
                     key={i}
+                    draggable
+                    onDragStart={(e) => {
+                      setDraggedSlotId(slotId);
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (draggedSlotId === null || draggedSlotId === slotId) return;
+                      swapModeShiftSlotActions(activeSet.id, modeShiftInputId!, activeModeShiftIndex, draggedSlotId, slotId);
+                      setDraggedSlotId(null);
+                    }}
+                    onDragEnd={() => setDraggedSlotId(null)}
                     onClick={() => setModeShiftPickSlot(isSelected ? null : slotId)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm transition-all ${isSelected
-                        ? (menuType === 'touch' ? 'bg-teal-600/20 border border-teal-500/40 text-teal-200' : 'bg-violet-600/20 border border-violet-500/40 text-violet-200')
-                        : 'bg-neutral-800/50 border border-neutral-800 text-neutral-300 hover:border-neutral-700'
-                      }`}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all border group relative cursor-default ${isSelected
+                        ? (menuType === 'touch' ? 'bg-teal-600/10 border-teal-500/40 text-teal-200' : 'bg-violet-600/20 border border-violet-500/40 text-violet-200')
+                        : 'bg-neutral-800/40 border-neutral-800 text-neutral-300 hover:border-neutral-700 hover:bg-neutral-800/60'
+                      } ${draggedSlotId === slotId ? 'opacity-40 border-dashed border-indigo-500' : ''}`}
                   >
-                    <span className={`shrink-0 flex items-center justify-center text-[10px] font-bold ${menuType === 'touch'
-                        ? `px-1.5 py-0.5 rounded ${action ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30' : 'bg-neutral-700 text-neutral-500'}`
-                        : `w-5 h-5 rounded-full ${action ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-neutral-700 text-neutral-500'}`
-                      }`}>
-                      {touchLabel || (i + 1)}
-                    </span>
-                    <span className={`flex-1 truncate ${action ? 'text-neutral-200' : 'text-neutral-500 italic'}`}>
-                      {action ? action.name : 'Empty'}
-                    </span>
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <div className="cursor-grab active:cursor-grabbing text-neutral-600 hover:text-neutral-400 p-0.5 -ml-1 shrink-0">
+                        <GripVertical className="w-3.5 h-3.5" />
+                      </div>
+                      
+                      <span className={`shrink-0 flex items-center justify-center text-[10px] font-bold ${menuType === 'touch'
+                          ? `px-1.5 py-0.5 rounded ${action ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30' : 'bg-neutral-700 text-neutral-500'}`
+                          : `w-5 h-5 rounded-full ${action ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-neutral-700 text-neutral-500'}`
+                        }`}>
+                        {touchLabel || (i + 1)}
+                      </span>
+                      <span className={`flex-1 truncate ${action ? 'text-neutral-200' : 'text-neutral-500 italic'}`}>
+                        {action ? action.name : 'Empty Slot'}
+                      </span>
+                    </div>
+
                     {action && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           setModeShiftSlot(activeSet.id, modeShiftInputId!, activeModeShiftIndex, slotId, null);
                         }}
-                        className="p-0.5 hover:bg-red-900/30 rounded text-neutral-600 hover:text-red-400 transition-colors"
+                        className="p-1 hover:bg-red-900/30 rounded text-neutral-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
                       >
-                        <X className="w-3 h-3" />
+                        <X className="w-3.5 h-3.5" />
                       </button>
                     )}
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -963,6 +1004,20 @@ export function DeckBinder() {
 
     const totalActions = activeSet.actions.length;
     const mappedActions = activeSet.actions.filter(a => isActionBound(a.id, activeSet, 'deck')).length;
+
+    const filteredModalActions = (() => {
+      if (!modalSearchTerm.trim()) return groupedActions;
+      const lowerTerm = modalSearchTerm.toLowerCase();
+      const filtered: Record<string, typeof activeSet.actions> = {};
+      Object.keys(groupedActions).forEach(cat => {
+        const catMatches = cat.toLowerCase().includes(lowerTerm);
+        const matchingActions = groupedActions[cat].filter(a => 
+          a.name.toLowerCase().includes(lowerTerm) || catMatches
+        );
+        if (matchingActions.length > 0) filtered[cat] = matchingActions;
+      });
+      return filtered;
+    })();
 
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -1004,12 +1059,39 @@ export function DeckBinder() {
               </button>
             </div>
           </div>
+
+          <div className="p-3 border-b border-neutral-800 bg-neutral-900/30">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
+              <input
+                type="text"
+                value={modalSearchTerm}
+                onChange={(e) => {
+                  setModalSearchTerm(e.target.value);
+                  // Auto-expand all when searching
+                  if (e.target.value.trim()) {
+                    setModalExpandedCategories(new Set(Object.keys(groupedActions)));
+                  }
+                }}
+                placeholder="Search actions or categories..."
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-lg pl-9 pr-9 py-2 text-sm text-neutral-200 placeholder:text-neutral-600 focus:outline-none focus:border-indigo-500/50 transition-colors"
+              />
+              {modalSearchTerm && (
+                <button 
+                  onClick={() => setModalSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 hover:bg-neutral-800 rounded text-neutral-500 hover:text-white transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
           
           <div className="flex-1 overflow-auto p-3 bg-neutral-900/50 custom-scrollbar">
-            {Object.keys(groupedActions).sort((a, b) => a === 'Uncategorized' ? 1 : b === 'Uncategorized' ? -1 : a.localeCompare(b)).map(cat => {
+            {Object.keys(filteredModalActions).sort((a, b) => a === 'Uncategorized' ? 1 : b === 'Uncategorized' ? -1 : a.localeCompare(b)).map(cat => {
               const isExpanded = modalExpandedCategories.has(cat);
-              const catMapped = groupedActions[cat].filter(a => isActionBound(a.id, activeSet, 'deck')).length;
-              const catTotal = groupedActions[cat].length;
+              const catMapped = filteredModalActions[cat].filter(a => isActionBound(a.id, activeSet, 'deck')).length;
+              const catTotal = filteredModalActions[cat].length;
 
               return (
                 <div key={cat} className="mb-2 last:mb-0">
@@ -1024,7 +1106,7 @@ export function DeckBinder() {
                   
                   {isExpanded && (
                     <div className="flex flex-col gap-1.5 mt-2 px-1">
-                      {groupedActions[cat].map(action => {
+                      {filteredModalActions[cat].map(action => {
                         const isCurrent = ms.slots[modeShiftPickSlot!] === action.id;
                         const isMapped = isActionBound(action.id, activeSet, 'deck');
                         return (
@@ -1194,8 +1276,8 @@ export function DeckBinder() {
             </div>
 
             <div className="p-4 flex-1 overflow-auto flex flex-col gap-4">
-              {currentBindings.map((combo, idx) => (
-                <div
+              {(activeSet.bindings.deck[currentAction.id] || []).map((combo, idx) => (
+                <div 
                   key={idx}
                   onClick={() => setActiveBindingIndex(idx)}
                   className={`p-3 rounded-lg border ${activeBindingIndex === idx ? 'border-indigo-500 bg-indigo-500/10' : 'border-neutral-800 bg-neutral-800/50 hover:border-neutral-700'} cursor-pointer transition-colors`}
@@ -1432,8 +1514,33 @@ export function DeckBinder() {
             </button>
           </div>
         </div>
+        <div className="p-3 border-b border-neutral-800 bg-neutral-900/30">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                if (e.target.value.trim()) {
+                  setExpandedCategories(new Set(Object.keys(groupedActions)));
+                }
+              }}
+              placeholder="Search actions or categories..."
+              className="w-full bg-neutral-950 border border-neutral-800 rounded-lg pl-9 pr-9 py-1.5 text-sm text-neutral-200 placeholder:text-neutral-600 focus:outline-none focus:border-indigo-500/50 transition-colors"
+            />
+            {searchTerm && (
+              <button 
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 hover:bg-neutral-800 rounded text-neutral-500 hover:text-white transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
         <div className="flex-1 overflow-auto p-2 min-h-0">
-          {Object.keys(groupedActions).sort((a, b) => a === 'Uncategorized' ? 1 : b === 'Uncategorized' ? -1 : a.localeCompare(b)).map(cat => (
+          {Object.keys(filteredSidebarActions).sort((a, b) => a === 'Uncategorized' ? 1 : b === 'Uncategorized' ? -1 : a.localeCompare(b)).map(cat => (
             <div key={cat} className="mb-2">
               <button
                 onClick={() => toggleCategory(cat)}
@@ -1442,15 +1549,15 @@ export function DeckBinder() {
                 {!expandedCategories.has(cat) ? <ChevronRight className="w-4 h-4 text-neutral-500" /> : <ChevronDown className="w-4 h-4 text-neutral-500" />}
                 <span className="text-sm font-semibold text-neutral-400">{cat}</span>
                 <span className="text-[10px] bg-neutral-800 text-neutral-400 px-1.5 py-0.5 rounded ml-auto flex items-center gap-1 font-mono">
-                  <span className="text-indigo-400 font-bold">{groupedActions[cat].filter(a => isActionBound(a.id, activeSet, 'deck')).length}</span>
+                  <span className="text-indigo-400 font-bold">{filteredSidebarActions[cat].filter(a => isActionBound(a.id, activeSet, 'deck')).length}</span>
                   <span className="opacity-30">/</span>
-                  <span>{groupedActions[cat].length}</span>
+                  <span>{filteredSidebarActions[cat].length}</span>
                 </span>
               </button>
 
               {expandedCategories.has(cat) && (
                 <div className="flex flex-col gap-1 mt-1 pl-2">
-                  {groupedActions[cat].map(action => {
+                  {filteredSidebarActions[cat].map(action => {
                     const isMapped = isActionBound(action.id, activeSet, 'deck');
                     return (
                       <button

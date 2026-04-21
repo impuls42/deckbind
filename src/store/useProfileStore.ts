@@ -27,6 +27,8 @@ interface ProfileState {
   setBindings: (setId: string, device: 'keyboard' | 'deck', actionId: string, bindings: string[][]) => void;
   addBinding: (setId: string, device: 'keyboard' | 'deck', actionId: string, binding: string[]) => void;
   removeBinding: (setId: string, device: 'keyboard' | 'deck', actionId: string, bindingIndex: number) => void;
+  moveBinding: (setId: string, device: 'keyboard' | 'deck', actionId: string, fromIndex: number, toIndex: number) => void;
+  swapModeShiftSlotActions: (setId: string, inputId: string, index: number, slotA: string, slotB: string) => void;
   
   // Mode Shift Management
   addModeShift: (setId: string, inputId: string, modeShift: ModeShift) => void;
@@ -224,6 +226,64 @@ export const useProfileStore = create<ProfileState>()(
                   [device]: {
                     ...s.bindings[device],
                     [actionId]: currentBindings.filter((_, i) => i !== bindingIndex),
+                  },
+                },
+              };
+            }),
+          },
+        })),
+
+      moveBinding: (setId, device, actionId, fromIndex, toIndex) =>
+        set((state) => ({
+          profileData: {
+            ...state.profileData,
+            actionSets: state.profileData.actionSets.map((s) => {
+              if (s.id !== setId) return s;
+              const bindings = [...(s.bindings[device][actionId] || [])];
+              const [moved] = bindings.splice(fromIndex, 1);
+              bindings.splice(toIndex, 0, moved);
+              return {
+                ...s,
+                bindings: {
+                  ...s.bindings,
+                  [device]: {
+                    ...s.bindings[device],
+                    [actionId]: bindings,
+                  },
+                },
+              };
+            }),
+          },
+        })),
+
+      swapModeShiftSlotActions: (setId, inputId, index, slotA, slotB) =>
+        set((state) => ({
+          profileData: {
+            ...state.profileData,
+            actionSets: state.profileData.actionSets.map((s) => {
+              if (s.id !== setId) return s;
+              const msList = [...(Array.isArray(s.bindings.deckModeShifts?.[inputId]) ? s.bindings.deckModeShifts![inputId] : [])];
+              const ms = msList[index];
+              if (!ms) return s;
+              
+              const newSlots = { ...ms.slots };
+              const tempA = newSlots[slotA];
+              const tempB = newSlots[slotB];
+              
+              if (tempB) newSlots[slotA] = tempB;
+              else delete newSlots[slotA];
+              
+              if (tempA) newSlots[slotB] = tempA;
+              else delete newSlots[slotB];
+              
+              msList[index] = { ...ms, slots: newSlots };
+              return {
+                ...s,
+                bindings: {
+                  ...s.bindings,
+                  deckModeShifts: {
+                    ...(s.bindings.deckModeShifts || {}),
+                    [inputId]: msList,
                   },
                 },
               };

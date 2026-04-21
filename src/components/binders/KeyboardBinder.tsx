@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useProfileStore } from '../../store/useProfileStore';
 import { isActionBound } from '../../utils/bindingUtils';
-import { Plus, X, ChevronLeft, Delete, CornerDownLeft, ArrowBigUp, ArrowRightToLine, Command, CaseSensitive, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Menu, ChevronDown, ChevronRight, ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
+import { Plus, X, Search, ChevronLeft, Delete, CornerDownLeft, ArrowBigUp, ArrowRightToLine, Command, CaseSensitive, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Menu, ChevronDown, ChevronRight, ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
 
 const MAIN_KEYS = [
   ['kb.escape', 'gap_1', 'kb.f1', 'kb.f2', 'kb.f3', 'kb.f4', 'gap_0.5', 'kb.f5', 'kb.f6', 'kb.f7', 'kb.f8', 'gap_0.5', 'kb.f9', 'kb.f10', 'kb.f11', 'kb.f12'],
@@ -27,6 +27,7 @@ export function KeyboardBinder() {
   const [activeBindingIndex, setActiveBindingIndex] = useState<number>(0);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [inspectedInputId, setInspectedInputId] = useState<string | null>(null);
 
   const activeSet = profileData.actionSets.find((s) => s.id === activeActionSetId);
@@ -45,6 +46,20 @@ export function KeyboardBinder() {
   const handleExpandAll = () => setExpandedCategories(new Set(Object.keys(groupedActions)));
   const handleCollapseAll = () => setExpandedCategories(new Set());
 
+  const filteredGroupedActions = useMemo(() => {
+    if (!searchTerm.trim()) return groupedActions;
+    const lowerTerm = searchTerm.toLowerCase();
+    const filtered: Record<string, typeof activeSet.actions> = {};
+    Object.keys(groupedActions).forEach(cat => {
+      const catMatches = cat.toLowerCase().includes(lowerTerm);
+      const matchingActions = groupedActions[cat].filter(a => 
+        a.name.toLowerCase().includes(lowerTerm) || catMatches
+      );
+      if (matchingActions.length > 0) filtered[cat] = matchingActions;
+    });
+    return filtered;
+  }, [groupedActions, searchTerm, activeSet]);
+
   type SidebarView = 'list' | 'binding' | 'inspect';
 
   const getSidebarView = (): SidebarView => {
@@ -56,15 +71,15 @@ export function KeyboardBinder() {
   const sidebarView = getSidebarView();
 
   const visibleActionsList = useMemo(() => {
-    const sortedCats = Object.keys(groupedActions).sort((a,b) => a === 'Uncategorized' ? 1 : b === 'Uncategorized' ? -1 : a.localeCompare(b));
+    const sortedCats = Object.keys(filteredGroupedActions).sort((a,b) => a === 'Uncategorized' ? 1 : b === 'Uncategorized' ? -1 : a.localeCompare(b));
     const visible: string[] = [];
     sortedCats.forEach(cat => {
       if (expandedCategories.has(cat)) {
-        groupedActions[cat].forEach(a => visible.push(a.id));
+        filteredGroupedActions[cat].forEach(a => visible.push(a.id));
       }
     });
     return visible;
-  }, [groupedActions, expandedCategories]);
+  }, [filteredGroupedActions, expandedCategories]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -411,7 +426,7 @@ export function KeyboardBinder() {
               </div>
               
               <div className="p-4 flex-1 overflow-auto flex flex-col gap-4">
-                {currentBindings.map((combo, idx) => (
+                {(activeSet.bindings.keyboard[currentAction.id] || []).map((combo, idx) => (
                   <div 
                     key={idx} 
                     onClick={() => setActiveBindingIndex(idx)}
@@ -533,8 +548,33 @@ export function KeyboardBinder() {
               </button>
             </div>
           </div>
+          <div className="p-3 border-b border-neutral-800 bg-neutral-900/30">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  if (e.target.value.trim()) {
+                    setExpandedCategories(new Set(Object.keys(groupedActions)));
+                  }
+                }}
+                placeholder="Search actions or categories..."
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-lg pl-9 pr-9 py-1.5 text-sm text-neutral-200 placeholder:text-neutral-600 focus:outline-none focus:border-indigo-500/50 transition-colors"
+              />
+              {searchTerm && (
+                <button 
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 hover:bg-neutral-800 rounded text-neutral-500 hover:text-white transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
           <div className="flex-1 overflow-auto p-2 min-h-0">
-            {Object.keys(groupedActions).sort((a,b) => a === 'Uncategorized' ? 1 : b === 'Uncategorized' ? -1 : a.localeCompare(b)).map(cat => (
+            {Object.keys(filteredGroupedActions).sort((a,b) => a === 'Uncategorized' ? 1 : b === 'Uncategorized' ? -1 : a.localeCompare(b)).map(cat => (
               <div key={cat} className="mb-2">
                 <button 
                   onClick={() => toggleCategory(cat)} 
@@ -543,15 +583,15 @@ export function KeyboardBinder() {
                 {!expandedCategories.has(cat) ? <ChevronRight className="w-4 h-4 text-neutral-500"/> : <ChevronDown className="w-4 h-4 text-neutral-500"/>}
                 <span className="text-sm font-semibold text-neutral-400">{cat}</span>
                 <span className="text-[10px] bg-neutral-800 text-neutral-400 px-1.5 py-0.5 rounded ml-auto flex items-center gap-1 font-mono">
-                  <span className="text-indigo-400 font-bold">{groupedActions[cat].filter(a => isActionBound(a.id, activeSet, 'keyboard')).length}</span>
+                  <span className="text-indigo-400 font-bold">{filteredGroupedActions[cat].filter(a => isActionBound(a.id, activeSet, 'keyboard')).length}</span>
                   <span className="opacity-30">/</span>
-                  <span>{groupedActions[cat].length}</span>
+                  <span>{filteredGroupedActions[cat].length}</span>
                 </span>
               </button>
               
               {expandedCategories.has(cat) && (
                 <div className="flex flex-col gap-1 mt-1 pl-2">
-                    {groupedActions[cat].map(action => {
+                    {filteredGroupedActions[cat].map(action => {
                       const isMapped = isActionBound(action.id, activeSet, 'keyboard');
                       return (
                         <button
